@@ -121,7 +121,7 @@ const server = createServer(async (req, res) => {
         return;
     }
 
-    // ========== CREATE TASK /task ==============
+    // ========== CREATE TASK /tasks =============
     if (method === "POST" && url === ( "/tasks" ||"/tasks/" )) {
         try {
             data = await getJsonBody(req);
@@ -145,6 +145,29 @@ const server = createServer(async (req, res) => {
 
         res.writeHead(201, {"content-type": "application/json"});
         res.end(JSON.stringify({success: `task <${data.title}> entered to DB`}));
+        return;
+    }
+
+    // ========== GET ALL TASKS /tasks========
+    if (method === "GET" && url === ( "/tasks" ||"/tasks/" )) {
+        // read tasks.json
+        let tasks;
+        try{
+            tasks = await readFile(fileName, "utf8");
+        } catch {
+            console.log("--> error reading file")
+            res.writeHead(400, {"content-type": "application/json"});
+            res.end(JSON.stringify({error: "could not read file"}));
+            return;
+        }
+        
+        // parse it
+        // const parseTasks = JSON.parse(tasks);
+        
+        // send output
+        console.log("--> success: tasks sent")
+        res.writeHead(200, {"content-type": "application/json"});
+        res.end(tasks);
         return;
     }
 
