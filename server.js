@@ -24,7 +24,7 @@ const genUUId = async () => {
     try{
         data = await readFile(fileName, 'utf8');
     } catch(err) {
-        console.log("--> error reading DB")
+        console.log("--> error: error reading DB")
     }
 
     const parsedData = JSON.parse(data);
@@ -280,7 +280,6 @@ const server = createServer(async (req, res) => {
             await writeFile(fileName, JSON.stringify(jsonArr, null, 2), "utf8");
             console.log(`--> success: task <${taskId}> updated successfully`);
         } catch (err){
-            console.log({err})
             console.log("--> error: id cannot be updated - catch");
             res.writeHead(400, {"content-type": "appliaction/json"});
             res.end(JSON.stringify({error: "id cannot be updated"}));
@@ -292,6 +291,61 @@ const server = createServer(async (req, res) => {
         return;
     }
 
+    // =========DELETE TASK /tasks/:id =======
+    if (method === "DELETE" && idReq){
+        // get taskId
+        const taskId = idReq[1];
+
+        // read tasks.json
+        let arr
+        try{
+            arr = await readFile(fileName, "utf8")
+        } catch (err) {
+            console.log("--> error: read file unsuccessful");
+            res.writeHead(400, {"content-type": "application/json"});
+            res.end(JSON.stringify({error: "read file unsuccessful"}));
+            return;
+        }
+
+        // parse it
+        const jsonArr = JSON.parse(arr);
+
+        // find matching id
+        let targetInd;
+        const targetObj = jsonArr.find((task, ind) => {
+            targetInd = ind;
+            return task.id === taskId;
+        });
+
+        if (targetObj === undefined) {
+            console.log("--> error: invalid id");
+            res.writeHead(400, {"content-type": "application/json"});
+            res.end(JSON.stringify({error: "invalid id"}));
+            return;
+        }
+
+        // console.log("Before:", {jsonArr})
+        // delete task
+        const newArr = jsonArr.filter(task => task.id !== taskId);
+        // console.log("After:", {newArr})
+
+        // write to tasks.json
+        try{
+            await writeFile(fileName, JSON.stringify(newArr, null, 2), "utf8");
+            console.log(`--> success: task <${taskId}> deleted successfully`);
+        } catch (err) {
+            console.log("--> error: task deletion failed");
+            res.writeHead(400, {"content-type": "appliaction/json"});
+            res.end(JSON.stringify({error: "task deletion failed"}));
+            return;
+        }
+
+        res.writeHead(200, {"content-type": "application/json"});
+        res.end(JSON.stringify({success: `task <${taskId}> deleted successfully`}));
+        return;
+    }
+
+    console.log("--> error: 404 not found");
     res.writeHead(404, {"content-type": "application/json"});
     res.end(JSON.stringify({error: "404 not found"}))
 });
