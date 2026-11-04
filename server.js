@@ -81,8 +81,7 @@ const dbEntry = async (data) => {
 
         await writeFile(fileName, JSON.stringify(jsonArr, null, 2), "utf8")
     } catch(err) {
-        console.log("--> error: could not write to tasks.json")
-        return;
+        console.log("--> error: could not write to tasks.json");
     }
     return {id};
 }
