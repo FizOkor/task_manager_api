@@ -175,14 +175,40 @@ const server = createServer(async (req, res) => {
     const idReqPatterm = new RegExp(`\/tasks\/([a-z]{${idLength}})\/?$`)
     const idReq = url.match(idReqPatterm);
     if (method === "GET" && idReq) {
-        console.log(`Request for id: ${idReq[1]}`)
-        res.end(`Request for id: ${idReq[1]}`)
+        const taskId = idReq[1];
+        // read tasks.json
+        let arr
+        try{
+            arr = await readFile(fileName,"utf8");
+        } catch{
+            console.log("---> error reading file")
+            res.writeHead(400, {"content-type": "application/json"});
+            res.end(JSON.stringify({error: `could not read file`}));
+        }
+        const jsonArr = JSON.parse(arr);
+        // loop through, find id === taskId
+        const targetObj = jsonArr.find(obj => obj.id === taskId);
+        
+        if (targetObj === undefined) {
+            console.log(`--> error: <id: ${taskId}> not found`)
+            res.writeHead(400, {"content-type": "appliaction/json"});
+            res.end(JSON.stringify({}));
+            return;
+        }
+        
+        console.log(`--> success: request for <id: ${taskId}> successfull`)
+        res.writeHead(200, {"content-type": "appliaction/json"})
+        res.end(JSON.stringify({task: targetObj}));
         return
     }
 
     res.writeHead(404, {"content-type": "application/json"});
     res.end(JSON.stringify({error: "404 not found"}))
 });
+
+// find a scalable way to replace this:
+// res.writeHead(200, {"content-type": "appliaction/json"})
+// res.end(JSON.stringify({task: targetObj}));
 
 // listen
 server.listen(3001, () => console.log("Server is listening on port 3001..."));
