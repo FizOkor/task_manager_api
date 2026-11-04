@@ -3,6 +3,7 @@ import { createServer } from "http";
 import { error } from "node:console";
 import { readFile, writeFile, appendFile } from 'fs/promises';
 import { title } from "node:process";
+import { type } from "node:os";
 
 const fileName = "tasks.json";
 const logLineLen = 40;
@@ -62,7 +63,7 @@ const initializeDb  = async () => {
 };
 
 const dbEntry = async (data) => {
-    // console.log(`${"-".repeat(40)}`);
+
     const id = await genUUId();
 
     const init = {
@@ -131,6 +132,15 @@ const server = createServer(async (req, res) => {
             return;
         }
 
+        // inspect data -> should contain only title & object.
+        const validData = Object.keys(data).length === 1 && data.title;
+        if (!validData) {
+            console.log("--> error: data contains title only")
+            res.writeHead(400, {"content-type": "application/json"});
+            res.end(JSON.stringify({error: "data must contain title only"}));
+            return;
+        }
+
         // enter data to DB
         let postData;
         try{
@@ -141,7 +151,7 @@ const server = createServer(async (req, res) => {
             return;
         }
 
-        console.log(`task <${data.title}> entered to DB`)
+        console.log(`--> success: task <${data.title}> entered in DB`)
 
         res.writeHead(201, {"content-type": "application/json"});
         res.end(JSON.stringify({success: `task <${data.title}> entered to DB`}));
@@ -200,6 +210,86 @@ const server = createServer(async (req, res) => {
         res.writeHead(200, {"content-type": "appliaction/json"})
         res.end(JSON.stringify({task: targetObj}));
         return
+    }
+
+    // ========= UPDATE TASK /tasks/:id =======
+    if (method === "PATCH" && idReq) {
+        const taskId = idReq[1];
+
+        // get data from put request
+        try {
+            data = await getJsonBody(req);
+        } catch(err) {
+            res.writeHead(400, {"content-type": "application/json"});
+            res.end(JSON.stringify({error: "could not write to DB"}));
+            return;
+        }
+        
+        // read tasks.json
+        let arr
+        try{
+            arr = await readFile(fileName,"utf8");
+        } catch{
+            console.log("---> error reading file")
+            res.writeHead(400, {"content-type": "application/json"});
+            res.end(JSON.stringify({error: `could not read file`}));
+        }
+
+        const jsonArr = JSON.parse(arr);
+        // loop through, find id === taskId
+        let targetInd;
+        const targetObj = jsonArr.find((obj, ind) => {
+            targetInd = ind;
+            return obj.id === taskId
+        });
+        
+        if (targetObj === undefined) {
+            console.log(`--> error: <id: ${taskId}> not found`)
+            res.writeHead(400, {"content-type": "appliaction/json"});
+            res.end(JSON.stringify({}));
+            return;
+        }
+
+        // ===== UPDATE TARGET OBJ ======
+        // get keys and values of targetObj
+        const targetKeys = Object.keys(targetObj);
+        const targetVals = Object.values(targetObj);
+        const dataKeys = Object.keys(data);
+        const dataVals = Object.values(data);
+        // console.log("Before:\n",{targetObj, data})
+
+        // validate input -> if key is in target object, update, else do not
+        if(dataKeys.includes("id")) {
+            console.log("--> error: id is immutable");
+            res.writeHead(400, {"content-type": "appliaction/json"});
+            res.end(JSON.stringify({error: "id cannot be updated"}));
+            return;
+        }
+        
+        // update jsonArr
+        Object.keys(jsonArr[targetInd]).forEach(key => {
+            if (targetKeys.includes(key)){
+                if(key === "id") return;
+                targetObj[key] = data[key];
+            }
+        });
+        // console.log("After:\n",{targetObj, data});
+
+        // update tasks.json
+        try{
+            await writeFile(fileName, JSON.stringify(jsonArr, null, 2), "utf8");
+            console.log(`--> success: task <${taskId}> updated successfully`);
+        } catch (err){
+            console.log({err})
+            console.log("--> error: id cannot be updated - catch");
+            res.writeHead(400, {"content-type": "appliaction/json"});
+            res.end(JSON.stringify({error: "id cannot be updated"}));
+            return;
+        }
+
+        res.writeHead(400, {"content-type": "appliaction/json"});
+        res.end(JSON.stringify({success: "task <${taskId}> updated successfully"}));
+        return;
     }
 
     res.writeHead(404, {"content-type": "application/json"});
