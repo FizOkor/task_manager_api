@@ -1,9 +1,6 @@
 // imports
 import { createServer } from "http";
-import { error } from "node:console";
-import { readFile, writeFile, appendFile } from 'fs/promises';
-import { title } from "node:process";
-import { type } from "node:os";
+import { readFile, writeFile } from 'fs/promises';
 
 const fileName = "tasks.json";
 const logLineLen = 40;
@@ -73,7 +70,6 @@ const dbEntry = async (data) => {
     }
     
     try{
-        // await appendFile(fileName, JSON.stringify(init, null, 2), "utf8");
         const rawArr = await readFile(fileName, "utf8");
         const jsonArr = JSON.parse(rawArr);
 
@@ -193,6 +189,7 @@ const server = createServer(async (req, res) => {
             console.log("---> error reading file")
             res.writeHead(400, {"content-type": "application/json"});
             res.end(JSON.stringify({error: `could not read file`}));
+            return;
         }
         const jsonArr = JSON.parse(arr);
         // loop through, find id === taskId
@@ -232,6 +229,7 @@ const server = createServer(async (req, res) => {
             console.log("---> error reading file")
             res.writeHead(400, {"content-type": "application/json"});
             res.end(JSON.stringify({error: `could not read file`}));
+            return;
         }
 
         const jsonArr = JSON.parse(arr);
