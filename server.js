@@ -6,10 +6,10 @@ import { title } from "node:process";
 
 const fileName = "tasks.json";
 const logLineLen = 40;
+const idLength = 6;
 
 // generate uuid
 const genUUId = async () => {
-    const idLength = 6;
     let id="";
 
     for (let i = 1; i <= idLength; i++) {
@@ -169,6 +169,15 @@ const server = createServer(async (req, res) => {
         res.writeHead(200, {"content-type": "application/json"});
         res.end(tasks);
         return;
+    }
+
+    // ========= GET ONE TASK /task/:id =======
+    const idReqPatterm = new RegExp(`\/tasks\/([a-z]{${idLength}})\/?$`)
+    const idReq = url.match(idReqPatterm);
+    if (method === "GET" && idReq) {
+        console.log(`Request for id: ${idReq[1]}`)
+        res.end(`Request for id: ${idReq[1]}`)
+        return
     }
 
     res.writeHead(404, {"content-type": "application/json"});
