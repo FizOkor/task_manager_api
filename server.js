@@ -256,7 +256,6 @@ const server = createServer(async (req, res) => {
         const targetVals = Object.values(targetObj);
         const dataKeys = Object.keys(data);
         const dataVals = Object.values(data);
-        // console.log("Before:\n",{targetObj, data})
 
         // validate input -> if key is in target object, update, else do not
         if(dataKeys.includes("id")) {
@@ -265,12 +264,12 @@ const server = createServer(async (req, res) => {
             res.end(JSON.stringify({error: "id cannot be updated"}));
             return;
         }
-        
+        console.log({targetObj, data})
         // update jsonArr
         Object.keys(jsonArr[targetInd]).forEach(key => {
             if (targetKeys.includes(key)){
                 if(key === "id") return;
-                targetObj[key] = data[key];
+                if(Object.hasOwn(data, key)) targetObj[key] = data[key];
             }
         });
         // console.log("After:\n",{targetObj, data});
