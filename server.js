@@ -123,7 +123,7 @@ const server = createServer(async (req, res) => {
     }
 
     // ========== CREATE TASK /tasks =============
-    if (method === "POST" && url === ( "/tasks" ||"/tasks/" )) {
+    if (method === "POST" && (url === "/tasks" || url === "/tasks/")) {
         try {
             data = await getJsonBody(req);
         } catch(err) {
@@ -159,7 +159,7 @@ const server = createServer(async (req, res) => {
     }
 
     // ========== GET ALL TASKS /tasks========
-    if (method === "GET" && url === ( "/tasks" ||"/tasks/" )) {
+    if (method === "GET" && (url === "/tasks" || url === "/tasks/")) {
         // read tasks.json
         let tasks;
         try{
