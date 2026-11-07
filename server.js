@@ -24,6 +24,8 @@ const genUUId = async () => {
         console.log("--> error: error reading DB")
     }
 
+    if (data === undefined ) return null;
+
     const parsedData = JSON.parse(data);
     const idUsed = parsedData.some(item => item.id === id);
     if(idUsed) { return genUUId() };
@@ -55,6 +57,9 @@ const initializeDb  = async () => {
                 return false;
             }
 
+        } else {
+            console.log("--> error reading tasks.json")
+            return false;
         }
     }
 };
@@ -62,6 +67,8 @@ const initializeDb  = async () => {
 const dbEntry = async (data) => {
 
     const id = await genUUId();
+
+    if( id === null ) throw new Error("--> error: error creating id");
 
     const init = {
         id,
@@ -78,6 +85,7 @@ const dbEntry = async (data) => {
         await writeFile(fileName, JSON.stringify(jsonArr, null, 2), "utf8")
     } catch(err) {
         console.log("--> error: could not write to tasks.json");
+        throw err;
     }
     return {id};
 }
@@ -109,7 +117,15 @@ const server = createServer(async (req, res) => {
     console.log({ method, url });
 
     // ==========CHECK IF tasks.json EXISTS ELSE CREATE ======
-    const dbReady = await initializeDb();
+    let dbReady
+    try {
+        dbReady = await initializeDb();
+    } catch (err) {
+        console.log("--> error: tasks.json initialization failed")
+        res.writeHead(500, {"content-type": "application/json"});
+        res.end(JSON.stringify({error: "tasks.json initialization failed"}));
+        return;
+    }
     if(!dbReady){
         console.log("--> error: tasks.json could not be created")
         res.writeHead(400, {"content-type": "application/json"});
@@ -128,7 +144,14 @@ const server = createServer(async (req, res) => {
         }
 
         // inspect data -> should contain only title & object.
-        const validData = Object.keys(data).length === 1 && data.title;
+        const validData =
+                        data !== null &&
+                        typeof data === "object" &&
+                        !Array.isArray(data) &&
+                        Object.keys(data).length === 1 &&
+                        typeof data.title === "string" &&
+                        data.title.trim() !== "";
+
         if (!validData) {
             console.log("--> error: data contains title only")
             res.writeHead(400, {"content-type": "application/json"});
@@ -140,8 +163,9 @@ const server = createServer(async (req, res) => {
         let postData;
         try{
             postData = await dbEntry(data);
-        } catch {      
-            res.writeHead(400, {"content-type": "application/json"});
+        } catch (err) {    
+            console.log(err);
+            res.writeHead(500, {"content-type": "application/json"});
             res.end(JSON.stringify({error: "Invalid JSON"}));
             return;
         }
@@ -186,7 +210,7 @@ const server = createServer(async (req, res) => {
         try{
             arr = await readFile(fileName,"utf8");
         } catch{
-            console.log("---> error reading file")
+            console.log("---> error: error reading file")
             res.writeHead(400, {"content-type": "application/json"});
             res.end(JSON.stringify({error: `could not read file`}));
             return;
@@ -197,13 +221,13 @@ const server = createServer(async (req, res) => {
         
         if (targetObj === undefined) {
             console.log(`--> error: <id: ${taskId}> not found`)
-            res.writeHead(400, {"content-type": "appliaction/json"});
+            res.writeHead(404, {"content-type": "application/json"});
             res.end(JSON.stringify({}));
             return;
         }
         
         console.log(`--> success: request for <id: ${taskId}> successfull`)
-        res.writeHead(200, {"content-type": "appliaction/json"})
+        res.writeHead(200, {"content-type": "application/json"})
         res.end(JSON.stringify({task: targetObj}));
         return
     }
@@ -234,15 +258,11 @@ const server = createServer(async (req, res) => {
 
         const jsonArr = JSON.parse(arr);
         // loop through, find id === taskId
-        let targetInd;
-        const targetObj = jsonArr.find((obj, ind) => {
-            targetInd = ind;
-            return obj.id === taskId
-        });
+        const targetObj = jsonArr.find((obj, ind) => obj.id === taskId);
         
         if (targetObj === undefined) {
             console.log(`--> error: <id: ${taskId}> not found`)
-            res.writeHead(400, {"content-type": "appliaction/json"});
+            res.writeHead(404, {"content-type": "application/json"});
             res.end(JSON.stringify({}));
             return;
         }
@@ -253,23 +273,42 @@ const server = createServer(async (req, res) => {
         const targetVals = Object.values(targetObj);
         const dataKeys = Object.keys(data);
         const dataVals = Object.values(data);
+        // console.log({targetKeys, targetVals, dataKeys, dataVals})
 
         // validate input -> if key is in target object, update, else do not
         if(dataKeys.includes("id")) {
             console.log("--> error: id is immutable");
-            res.writeHead(400, {"content-type": "appliaction/json"});
+            res.writeHead(400, {"content-type": "application/json"});
             res.end(JSON.stringify({error: "id cannot be updated"}));
             return;
         }
-        console.log({targetObj, data})
+        
         // update jsonArr
-        Object.keys(jsonArr[targetInd]).forEach(key => {
-            if (targetKeys.includes(key)){
-                if(key === "id") return;
-                if(Object.hasOwn(data, key)) targetObj[key] = data[key];
-            }
+        const validTypes = {
+            title: (title) => typeof(title) === "string" && title.trim() !== "",
+            completed: (val) => typeof(val) === "boolean"
+        }
+
+        const validateData =
+                            data !== null &&
+                            typeof data === "object" &&
+                            !Array.isArray(data) &&
+                            dataKeys.length > 0 &&
+                            dataKeys.every(key =>
+                                Object.hasOwn(validTypes, key) && validTypes[key](data[key])
+                            );
+
+        if( !validateData ){
+            console.log("--> error: one or more fields contain invalid data");
+            res.writeHead(400, {"content-type": "application/json"});
+            res.end(JSON.stringify({error: "one or more fields contain invalid data"}));
+            return;
+        }
+
+
+        dataKeys.forEach(key => {
+            targetObj[key] = data[key];
         });
-        // console.log("After:\n",{targetObj, data});
 
         // update tasks.json
         try{
@@ -277,13 +316,13 @@ const server = createServer(async (req, res) => {
             console.log(`--> success: task <${taskId}> updated successfully`);
         } catch (err){
             console.log("--> error: id cannot be updated - catch");
-            res.writeHead(400, {"content-type": "appliaction/json"});
+            res.writeHead(500, {"content-type": "application/json"});
             res.end(JSON.stringify({error: "id cannot be updated"}));
             return;
         }
 
-        res.writeHead(400, {"content-type": "appliaction/json"});
-        res.end(JSON.stringify({success: "task <${taskId}> updated successfully"}));
+        res.writeHead(200, {"content-type": "application/json"});
+        res.end(JSON.stringify({success: `task <${taskId}> updated successfully`}));
         return;
     }
 
@@ -307,11 +346,7 @@ const server = createServer(async (req, res) => {
         const jsonArr = JSON.parse(arr);
 
         // find matching id
-        let targetInd;
-        const targetObj = jsonArr.find((task, ind) => {
-            targetInd = ind;
-            return task.id === taskId;
-        });
+        const targetObj = jsonArr.find((task, ind) => task.id === taskId);
 
         if (targetObj === undefined) {
             console.log("--> error: invalid id");
@@ -320,10 +355,8 @@ const server = createServer(async (req, res) => {
             return;
         }
 
-        // console.log("Before:", {jsonArr})
         // delete task
         const newArr = jsonArr.filter(task => task.id !== taskId);
-        // console.log("After:", {newArr})
 
         // write to tasks.json
         try{
@@ -331,7 +364,7 @@ const server = createServer(async (req, res) => {
             console.log(`--> success: task <${taskId}> deleted successfully`);
         } catch (err) {
             console.log("--> error: task deletion failed");
-            res.writeHead(400, {"content-type": "appliaction/json"});
+            res.writeHead(500, {"content-type": "application/json"});
             res.end(JSON.stringify({error: "task deletion failed"}));
             return;
         }
@@ -345,10 +378,6 @@ const server = createServer(async (req, res) => {
     res.writeHead(404, {"content-type": "application/json"});
     res.end(JSON.stringify({error: "404 not found"}))
 });
-
-// find a scalable way to replace this:
-// res.writeHead(200, {"content-type": "appliaction/json"})
-// res.end(JSON.stringify({task: targetObj}));
 
 // listen
 server.listen(3001, () => console.log("Server is listening on port 3001..."));
